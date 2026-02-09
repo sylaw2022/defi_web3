@@ -1,0 +1,17 @@
+node_modules
+.env
+coverage
+coverage.json
+typechain
+typechain-types
+hardhat
+hardhat.d.ts
+dist
+build
+deployments
+cache
+artifacts
+cache_forge
+out
+lib
+.DS_Store
