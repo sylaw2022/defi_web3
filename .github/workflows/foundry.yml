@@ -33,6 +33,19 @@ jobs:
       - name: Run Tests
         run: forge test
 
+      - name: Send Email on Success
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: Foundry Tests Passed (${{ github.repository }})
+          body: The Foundry tests passed successfully on branch ${{ github.ref_name }}. View run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          to: groklord2@gmail.com
+          from: GitHub Actions
+
       - name: Send Email on Failure
         if: failure()
         uses: dawidd6/action-send-mail@v3
