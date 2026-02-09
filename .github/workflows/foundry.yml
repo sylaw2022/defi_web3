@@ -18,6 +18,18 @@ jobs:
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Install Forge Dependencies
+        run: forge install foundry-rs/forge-std --no-git --no-commit
+
       - name: Run Tests
         run: forge test
 
