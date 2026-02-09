@@ -18,6 +18,10 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+          
           
       - name: Install Dependencies
         run: npm ci
