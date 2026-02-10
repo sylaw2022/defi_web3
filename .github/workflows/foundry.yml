@@ -33,7 +33,7 @@ jobs:
       - name: Run Tests
         shell: bash
         run: |
-          forge test -vv --no-color | tee test_log.txt
+          forge test -vv --color never | tee test_log.txt
 
       - name: Send Email on Success
         if: success()
