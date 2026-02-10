@@ -31,7 +31,9 @@ jobs:
         run: git clone https://github.com/foundry-rs/forge-std lib/forge-std
 
       - name: Run Tests
-        run: forge test
+        shell: bash
+        run: |
+          forge test -vv --no-color | tee test_log.txt
 
       - name: Send Email on Success
         if: success()
@@ -42,7 +44,8 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Foundry Tests Passed (${{ github.repository }})
-          body: The Foundry tests passed successfully on branch ${{ github.ref_name }}. View run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          body: The Foundry tests passed successfully on branch ${{ github.ref_name }}. See attached log.
+          body_file: test_log.txt
           to: groklord2@gmail.com
           from: GitHub Actions
 
@@ -55,6 +58,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Foundry Tests Failed (${{ github.repository }})
-          body: The Foundry tests failed on branch ${{ github.ref_name }}. Check action run ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          body: The Foundry tests failed on branch ${{ github.ref_name }}. See attached log.
+          body_file: test_log.txt
           to: groklord2@gmail.com
           from: GitHub Actions
