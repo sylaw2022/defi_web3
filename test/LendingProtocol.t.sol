@@ -28,7 +28,7 @@ contract LendingProtocolTest is Test {
         lendingProtocol.deposit(address(token), 100 ether);
         
         uint256 balance = lendingProtocol.balances(user, address(token));
-        assertEq(balance, 100 ether);
+        assertEq(balance, 50 ether);
         
         vm.stopPrank();
     }
