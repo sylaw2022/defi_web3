@@ -44,8 +44,7 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Foundry Tests Passed (${{ github.repository }})
-          body: The Foundry tests passed successfully on branch ${{ github.ref_name }}. See attached log.
-          body_file: test_log.txt
+          body: file://test_log.txt
           to: groklord2@gmail.com
           from: GitHub Actions
 
@@ -58,7 +57,6 @@ jobs:
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: Foundry Tests Failed (${{ github.repository }})
-          body: The Foundry tests failed on branch ${{ github.ref_name }}. See attached log.
-          body_file: test_log.txt
+          body: file://test_log.txt
           to: groklord2@gmail.com
           from: GitHub Actions
