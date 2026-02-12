@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useReadContract, useWriteContract, useWaitForTransactionReceipt } from 'wagmi'
 import { injected } from 'wagmi/connectors'
-import { parseEther, formatEther } from 'viem'
+import { parseUnits, formatUnits } from 'viem'
 import { CONTRACTS } from './config'
 import LendingProtocolABI from './abis/LendingProtocol.json'
 import MockTokenABI from './abis/MockToken.json'
@@ -10,7 +10,6 @@ function App() {
   const { address, isConnected } = useAccount()
   const { connect } = useConnect()
   const { disconnect } = useDisconnect()
-  const { data: hash, writeContract } = useWriteContract()
 
   if (!isConnected) {
     return (
@@ -40,6 +39,13 @@ function TokenSection({ tokenName, tokenAddress }) {
   const [amount, setAmount] = useState('')
   const { writeContract } = useWriteContract()
 
+  // Read Token Decimals
+  const { data: decimals } = useReadContract({
+    address: tokenAddress,
+    abi: MockTokenABI,
+    functionName: 'decimals',
+  })
+
   // Read User Balance (Wallet)
   const { data: walletBalance, error: walletError, refetch: refetchWallet } = useReadContract({
     address: tokenAddress,
@@ -49,10 +55,9 @@ function TokenSection({ tokenName, tokenAddress }) {
   })
 
   useEffect(() => {
-
-    if (walletBalance) console.log(`Balance for ${tokenName}:`, formatEther(walletBalance));
+    if (walletBalance !== undefined && decimals) console.log(`Balance for ${tokenName}:`, formatUnits(walletBalance, decimals));
     if (walletError) console.error(`Error fetching balance for ${tokenName}:`, walletError);
-  }, [walletBalance, walletError]);
+  }, [walletBalance, walletError, decimals, tokenName]);
 
   // Read Protocol Balance
   const { data: protocolBalance, refetch: refetchProtocol } = useReadContract({
@@ -63,19 +68,16 @@ function TokenSection({ tokenName, tokenAddress }) {
   })
 
   useEffect(() => {
+    if (protocolBalance !== undefined && decimals) console.log(`Protocol Balance for ${tokenName}:`, formatUnits(protocolBalance, decimals));
+  }, [protocolBalance, decimals, tokenName]);
 
-    if (protocolBalance) console.log(`Protocol Balance for ${tokenName}:`, formatEther(protocolBalance));
-  }, [protocolBalance]);
-
-
-
-  // Refined approach: 2 buttons.
+  const tokenDecimals = decimals || 18; // Default to 18 while loading
 
   return (
     <div className="card">
       <h2>{tokenName}</h2>
-      <p>Wallet Balance: {walletBalance ? formatEther(walletBalance) : '0'}</p>
-      <p>Protocol Balance: {protocolBalance ? formatEther(protocolBalance) : '0'}</p>
+      <p>Wallet Balance: {walletBalance !== undefined ? formatUnits(walletBalance, tokenDecimals) : '0'}</p>
+      <p>Protocol Balance: {protocolBalance !== undefined ? formatUnits(protocolBalance, tokenDecimals) : '0'}</p>
 
       <div className="actions">
         <input
@@ -87,6 +89,7 @@ function TokenSection({ tokenName, tokenAddress }) {
         <ActionButtons
           tokenAddress={tokenAddress}
           amount={amount}
+          decimals={tokenDecimals}
           refetch={() => { refetchWallet(); refetchProtocol(); }}
         />
       </div>
@@ -94,7 +97,7 @@ function TokenSection({ tokenName, tokenAddress }) {
   )
 }
 
-function ActionButtons({ tokenAddress, amount, refetch }) {
+function ActionButtons({ tokenAddress, amount, decimals, refetch }) {
   const { address } = useAccount()
   const { writeContract, data: hash, isPending } = useWriteContract()
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash })
@@ -124,18 +127,25 @@ function ActionButtons({ tokenAddress, amount, refetch }) {
     }
   }, [allowance, allowanceError, isAllowanceLoading, tokenAddress]);
 
+  const parseAmount = (amt) => {
+    try {
+      return parseUnits(amt || "0", decimals);
+    } catch (e) {
+      return 0n;
+    }
+  }
+
+  const amountBN = parseAmount(amount);
+
   const mint = () => {
     writeContract({
       address: tokenAddress,
       abi: MockTokenABI,
       functionName: 'mint',
-      args: [address, parseEther("1000")],
+      args: [address, parseUnits("1000", decimals)],
     }, {
       onSuccess: (data) => {
         console.log("Mint transaction sent:", data);
-        // Wait for confirmation is handled by the useEffect above for generic 'isSuccess' 
-        // but we can also manually refetch after a delay or rely on the generic wait.
-        // For immediate feedback, let's refetch.
         refetch();
       },
       onError: (error) => {
@@ -149,7 +159,7 @@ function ActionButtons({ tokenAddress, amount, refetch }) {
       address: tokenAddress,
       abi: MockTokenABI,
       functionName: 'approve',
-      args: [CONTRACTS.LendingProtocol, parseEther(amount || "0")],
+      args: [CONTRACTS.LendingProtocol, amountBN],
     }, {
       onSuccess: () => { refetchAllowance(); }
     })
@@ -161,7 +171,7 @@ function ActionButtons({ tokenAddress, amount, refetch }) {
       address: CONTRACTS.LendingProtocol,
       abi: LendingProtocolABI,
       functionName: 'deposit',
-      args: [tokenAddress, parseEther(amount)],
+      args: [tokenAddress, amountBN],
     }, {
       onSuccess: (data) => {
         console.log("Deposit transaction sent:", data);
@@ -179,21 +189,12 @@ function ActionButtons({ tokenAddress, amount, refetch }) {
       address: CONTRACTS.LendingProtocol,
       abi: LendingProtocolABI,
       functionName: 'withdraw',
-      args: [tokenAddress, parseEther(amount)],
+      args: [tokenAddress, amountBN],
     }, {
       onSuccess: () => { refetch(); refetchAllowance(); }
     })
   }
 
-  const parseAmount = (amt) => {
-    try {
-      return parseEther(amt || "0");
-    } catch (e) {
-      return 0n;
-    }
-  }
-
-  const amountBN = parseAmount(amount);
   const allowanceBN = allowance || 0n;
   const isApproved = amount && amountBN > 0n && allowanceBN >= amountBN;
 
