@@ -12,9 +12,9 @@ contract LendingProtocolTest is Test {
 
     function setUp() public {
         token = new MockToken("Test Token", "TEST");
-        address[] memory supportedTokens = new address[](1);
-        supportedTokens[0] = address(token);
-        lendingProtocol = new LendingProtocol(supportedTokens);
+        // For the deposit/withdraw tests, we just use the same token as both token0 and token1 
+        // to satisfy the constructor, as we are testing lending logic here.
+        lendingProtocol = new LendingProtocol(address(token), address(token));
         
         // Setup initial state
         vm.deal(user, 100 ether);
@@ -28,7 +28,7 @@ contract LendingProtocolTest is Test {
         lendingProtocol.deposit(address(token), 100 ether);
         
         uint256 balance = lendingProtocol.balances(user, address(token));
-        assertEq(balance, 50 ether);
+        assertEq(balance, 100 ether);
         
         vm.stopPrank();
     }
