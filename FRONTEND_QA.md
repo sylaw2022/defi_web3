@@ -266,3 +266,107 @@ For massive apps, we use **Redis Cluster**, where data is split (sharded) across
 **A:** **User Experience (UX)**.
 - It allows "Gasless" onboarding (User doesn't need ETH).
 - Users can pay in other tokens (USDC) or via Credit Card (Paymasters).
+
+## 6. Next.js Internals & .next Folder
+
+### Q: What is inside the `.next` folder?
+**A:** It is the build output directory.
+- **`.next/server`**: Contains logic that runs on the server (SSR, API Routes).
+- **`.next/static`**: Contains logic sent to the browser (Client Components, CSS, Images).
+- **`chunks/`**: Shared code split into small files to optimize loading.
+- **`build-manifest.json`**: Maps your source files to the specific hashed output files.
+
+### Q: Where is the Turbopack code?
+**A:** Turbopack outputs its development build artifacts into `.next/server` and `.next/static`, just like Webpack. The `turbopack` file in the root is just an internal state/IPC file.
+
+### Q: Why are file names hashed (e.g., `2ccd4236.js`)?
+**A:** For **Caching**.
+- The server tells the browser to cache these files "forever" (Immutable).
+- When you change your code, the hash changes (e.g., to `a8f9b2c1.js`).
+- The browser sees a new filename in the HTML and knows it MUST download the new version.
+
+## 7. Rendering Patterns (SSR vs ISR vs CSR)
+
+### Q: Does "Client Component" mean "No Server Rendering"?
+**A:** **No.**
+- **Initial Load**: Even Client Components (`'use client'`) are pre-rendered on the server to generate the initial HTML snapshot.
+- **Hydration**: The browser then downloads the JS, runs React, and "hydrates" that HTML to make it interactive (attach event listeners).
+
+### Q: Does using a Database mean I must use SSR?
+**A:** **No.**
+- **Default Behavior**: Next.js tries to **cache** database results at build time (Static).
+- **Dynamic (SSR)**: You must explicitly opt-in by using dynamic functions (`cookies()`, `headers()`) or `export const dynamic = 'force-dynamic'`.
+
+### Q: What is ISR (Incremental Static Regeneration)?
+**A:** A hybrid between Static and Dynamic.
+- **Strategy**: Cache the page key, but expire it after X seconds.
+- **Code**: `export const revalidate = 60;`
+- **Flow**:
+    1.  User A visits: Gets cached HTML (Instant).
+    2.  User B visits after 60s: Gets cached HTML (Instant), but triggers a background regeneration.
+    3.  User C visits: Gets the NEW HTML.
+- **Verdict**: Great for public pages (Pricing, listings) that need data freshness but can afford a 1-minute delay.
+
+### Q: Are SSR and ISR both Server-Side?
+**A:** **Yes.** Both run 100% on the server (Node.js). The browser only receives the HTML.
+
+## 8. React Server Components (RSC) & Async
+
+### Q: Can I use `async/await` in a React Component?
+**A:**
+- **Server Components**: **YES**. (`export default async function Page() ...`)
+- **Client Components**: **NO**. (You must use `useEffect` or libraries like TanStack Query).
+
+### Q: Does an `async` Server Component block rendering?
+**A:** **Yes.**
+- The server pauses rendering that component until the `await` finishes.
+- **Streaming**: You can unblock the rest of the page by wrapping the async component in `<Suspense>`. This allows the server to send the "shell" immediately and stream the async part when it's ready.
+
+### Q: What distinguishes a Component from a Helper Function?
+**A:**
+1.  **Capitalization**: Components MUST be **Capitalized** (`function Keypad`). Helpers are **lowercase** (`function calculate()`).
+2.  **Return**: Components return **JSX**. Helpers return **data**.
+
+### Q: Does ISR run in the background?
+**A:** **Yes.** When the cache expires, the request triggers a background rebuild. The user sees the old content, while the server generates the new one.
+
+### Q: Does SSG run at build time only?
+**A:** **Yes.** The code runs once during `npm run build`. The resulting HTML is saved and served statically forever (until the next deployment).
+
+### Q: Does SSR regenerate the HTML file?
+**A:** **No.**
+- **ISR**: Updates a persistent HTML file on the server (Cache).
+- **SSR**: **Generates** HTML on-the-fly for that specific response, sends it, and forgets it. It does not update any file on disk.
+
+## 9. Navigation & RSC Payloads
+
+### Q: What is the difference between `<a href>` and `<Link href>`?
+**A:**
+- **`<a href="/about">`**: Performed by the **Browser**.
+    - It requests the full page (`GET /about`).
+    - The Server returns **HTML**.
+    - The Browser destroys the current page and loads the new one (Full Reload).
+- **`<Link href="/about">`**: Performed by **JavaScript (Next.js)**.
+    - It intercepts the click.
+    - It requests `GET /about` with a special header (`RSC: 1`).
+    - The Server returns **RSC Payload** (a JSON-like binary format describing the component tree), NOT HTML.
+    - React uses this data to update the DOM without a reload.
+
+### Q: Which one should I use?
+**A:** Always use `<Link>` for internal navigation (pages within your app). Use `<a>` only for external links (e.g., Google, Twitter).
+
+### Q: Does SSG have a cache?
+**A:** **SSG IS the cache.**
+- The HTML file generated at build time (`npm run build`) is the permanent cache.
+- It never expires. It is served instantly to every user.
+- The only way to "clear" this cache is to rebuild and redeploy the app.
+
+### Q: So only ISR has a cache?
+**A:** **No, SSG also has a cache**, but it behaves differently:
+- **SSG**: Permanent Cache (until rebuild).
+- **ISR**: Temporary Cache (until revalidate time).
+- **SSR**: No Page Cache (always fresh).
+
+**Note**: Even in SSR, individual *data fetches* (`fetch('api')`) might be cached by Next.js unless you strictly opt-out.
+
+
