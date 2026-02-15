@@ -369,4 +369,86 @@ For massive apps, we use **Redis Cluster**, where data is split (sharded) across
 
 **Note**: Even in SSR, individual *data fetches* (`fetch('api')`) might be cached by Next.js unless you strictly opt-out.
 
+### Q: Does this mean SSG cannot handle real-time data?
+**A:** **The Server cannot, but the Client can.**
+- **Initial Load (SSG)**: The user sees a static "Shell" (Navbar, Footer, Loading Spinner) instantly. The data is stale or empty.
+- **Client Fetch (CSR)**: Immediately after loading, the browser runs JavaScript (`useEffect` or `useQuery`) to fetch the live data from an API.
+- **Result**: You get the speed of SSG (instant load) with the freshness of Real-time data (via client-side fetching). This is often called **Static + Client-Side Fetching**.
+
+### Q: Can you show me an example of "Static Shell + Client Fetch"?
+**A:** This is the standard pattern for Dashboards.
+
+```javascript
+'use client' // Opt-in to client-side logic
+
+import { useState, useEffect } from 'react'
+
+export default function Dashboard() {
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    // 2. Browser fetches fresh data immediately after load
+    fetch('/api/user-stats')
+      .then(res => res.json())
+      .then(setData)
+  }, [])
+
+  // 1. Initial Render (What SSG sends): Loading State
+  if (!data) return <div>Loading your dashboard...</div>
+
+  // 3. Final Render: Real-time Data
+  return <div>Welcome, your balance is ${data.balance}</div>
+}
+```
+**Mechanism**:
+- Next.js builds the HTML with "Loading your dashboard..." at build time.
+- Users see that instantly.
+- Then the browser swaps it for the balance once the API responds.
+
+### Q: What does `fetch('/api/user-stats')` actually do?
+**A:** It calls a **Route Handler** (API Route) on your Next.js server.
+- **Frontend**: The browser sends a HTTP GET request to `/api/user-stats`.
+- **Backend**: Next.js looks for the file `app/api/user-stats/route.js`.
+- **Execution**: That file (running on the server) connects to the database, queries the user stats, and returns a JSON response.
+- **Why?**: This keeps your database credentials secure on the server. The Client never talks to the DB directly.
+
+### Q: All strategies (SSG, ISR, SSR) can handle Real-Time data. What are the Pros & Cons?
+**A:** It's a trade-off between **Initial Load Speed** vs **Data Freshness** vs **SEO**.
+
+| Strategy | Initial Load (TTFB) | SEO (Google) | Data Freshness | Server Cost | Ideal For |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **SSG + Client Fetch** | ⚡ **Instant** | ⚠️ **Bad** (Sees "Loading...") | ✅ **Live** (via API) | 💰 **Low** | Private Dashboards, User Profiles |
+| **SSR** | 🐌 **Slow** (Waits for DB) | ✅ **Perfect** (Sees Data) | ✅ **Live** (Standard) | 💸 **High** | Stock Tickers, News Feeds |
+| **ISR** | ⚡ **Instant** | ✅ **Perfect** (Sees Cached Data) | ⚠️ **Stale** (e.g., 60s old) | 💰 **Low** | Marketing Pages, Pricing Tables |
+
+**Summary Decision:**
+- **Private User Data?** -> Use **SSG + Client Fetch**. (SEO doesn't matter for private dashboards).
+- **Public Data (Needs SEO)?**
+    - Does it change every second? -> **SSR**.
+    - Does it change every second? -> **SSR**.
+    - Is 1 minute stale okay? -> **ISR** (Best performance).
+
+### Q: In API Routes, does `await wallet.sendTransaction(...)` pause execution?
+**A:** **Yes, but only for Submission.**
+1.  **Pause**: The code *pauses* at that line while the wallet signs the transaction and sends it to the RPC Node (e.g., Infura/Alchemy or Localhost).
+2.  **Resume**: As soon as the node replies "OK, I received it, here is the Hash (0x123...)", the Promise resolves. The code continues to the next line.
+3.  **Mining**: It does **NOT** wait for the transaction to be mined (confirmed) on the blockchain. That could take 15 seconds (Ethereum) or minutes.
+4.  **To Wait**: If you *want* to pause until it is confirmed, you must add:
+    ```javascript
+    const tx = await wallet.sendTransaction(...);
+    const tx = await wallet.sendTransaction(...);
+    await tx.wait(); // This pauses until 1 block confirmation!
+    ```
+
+### Q: Does `await` inside `useEffect` pause the whole app?
+**A:** **No.**
+- It only pauses the **inner function** execution.
+- **React keeps running**: The UI remains responsive (buttons work, animations play).
+- **The Flow**:
+    1.  Component Renders (UI shows "Loading...").
+    2.  `useEffect` starts the async task.
+    3.  `await` pauses the task (waiting for Blockchain).
+    4.  React waits patiently in the background.
+    5.  Task finishes -> Calls `setState` -> Component Re-renders with result.
+
 
